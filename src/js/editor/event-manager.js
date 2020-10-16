@@ -1,7 +1,7 @@
 import assert from 'mobiledoc-kit/utils/assert'
 import { parsePostFromPaste, setClipboardData, parsePostFromDrop } from 'mobiledoc-kit/utils/parse-utils'
 import { filter, forEach } from 'mobiledoc-kit/utils/array-utils'
-import Key from 'mobiledoc-kit/utils/key'
+import Key from '../utils/key'
 import TextInputHandler from 'mobiledoc-kit/editor/text-input-handler'
 import SelectionManager from 'mobiledoc-kit/editor/selection-manager'
 import Browser from 'mobiledoc-kit/utils/browser'
@@ -154,7 +154,8 @@ export default class EventManager {
       event.preventDefault()
     }
 
-    if (!key.isEnter() && (key.toString() === '\r' || key.toString() === '\n')) {
+    // Handle carriage returns
+    if (!key.isEnter() && key.keyCode === 13) {
       _textInputHandler.handleNewLine()
       editor.handleNewline(event)
       return
@@ -186,7 +187,7 @@ export default class EventManager {
     let range = editor.range
 
     switch (true) {
-      // Ignore tab/arrow/delete keydown events when using an IME
+      // Ignore keydown events when using an IME
       case key.isIME(): {
         break
       }
@@ -236,12 +237,10 @@ export default class EventManager {
     this._updateModifiersFromKey(key, { isDown: false })
   }
 
-  // The mutation handler interefers with IMEs when composing
+  // The mutation handler interferes with IMEs when composing
   // on a blank line. These two event handlers are for suppressing
   // mutation handling in this scenario.
   compositionstart(event) {
-    event.preventDefault()
-
     let { editor } = this
     // Ignore compositionstart if not on a blank line
     if (editor.range.headMarker) {
@@ -254,22 +253,18 @@ export default class EventManager {
     }
 
     // Stop listening for mutations on Chrome browsers and suppress
-    // mutations by inputting a null character for other browsers.
+    // mutations by prepending a character for other browsers.
     // The reason why we treat these separately is because
-    // of the order in which each browser deals with the
-    // compositionend and keydown events.
+    // of the way each browser processes IME inputs.
     if (Browser.isChrome()) {
       editor.setPlaceholder('')
       editor._mutationHandler.stopObserving()
     } else {
-      this._textInputHandler.handle('\0')
+      this._textInputHandler.handle(' ')
     }
-
   }
 
   compositionend(event) {
-    event.preventDefault()
-
     let { editor } = this
 
     // Ignore compositionend if not composing on blank line
@@ -279,7 +274,7 @@ export default class EventManager {
     this._isComposingOnBlankLine = false
 
     // Start listening for mutations on Chrome browsers and
-    // delete the null character introduced by compositionstart
+    // delete the prepended character introduced by compositionstart
     // for other browsers.
     if (Browser.isChrome()) {
       editor.insertText(event.data)
